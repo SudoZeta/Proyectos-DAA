@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { solicitudes } from "@/lib/solicitudesStore";
+import { getSolicitudesCollection } from "@/lib/database";
 
 export async function GET(
   req: Request,
@@ -9,6 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const solicitudesDB = await getSolicitudesCollection();
 
     const authHeader = req.headers.get("authorization");
     const role = req.headers.get("role");
@@ -21,9 +22,7 @@ export async function GET(
       );
     }
 
-    const solicitud = solicitudes.find(
-      (s) => s.id === id
-    );
+    const solicitud = solicitudesDB.findOne({ id });
 
     if (!solicitud) {
       return NextResponse.json(
@@ -32,15 +31,10 @@ export async function GET(
       );
     }
 
-    // Admin puede ver cualquiera
     if (role === "admin") {
-      return NextResponse.json(
-        { solicitud },
-        { status: 200 }
-      );
+      return NextResponse.json({ solicitud }, { status: 200 });
     }
 
-    // Usuario solo puede ver la suya
     if (solicitud.userId !== userId) {
       return NextResponse.json(
         { message: "Acceso prohibido" },
@@ -48,11 +42,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      { solicitud },
-      { status: 200 }
-    );
+    return NextResponse.json({ solicitud }, { status: 200 });
+
   } catch (error) {
+    console.error("GET /api/solicitudes/[id] error:", error);
     return NextResponse.json(
       { message: "Error al obtener solicitud" },
       { status: 500 }
@@ -66,6 +59,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await context.params;
+    const solicitudesDB = await getSolicitudesCollection();
 
     const authHeader = req.headers.get("authorization");
     const role = req.headers.get("role");
@@ -78,9 +72,7 @@ export async function PUT(
       );
     }
 
-    const solicitud = solicitudes.find(
-      (s) => s.id === id
-    );
+    const solicitud = solicitudesDB.findOne({ id });
 
     if (!solicitud) {
       return NextResponse.json(
@@ -89,7 +81,6 @@ export async function PUT(
       );
     }
 
-    // Usuario solo puede editar la suya
     if (role !== "admin" && solicitud.userId !== userId) {
       return NextResponse.json(
         { message: "Acceso prohibido" },
@@ -113,14 +104,15 @@ export async function PUT(
     solicitud.estado = estado || solicitud.estado;
     solicitud.updatedAt = new Date().toISOString();
 
+    solicitudesDB.update(solicitud);
+
     return NextResponse.json(
-      {
-        message: "Solicitud actualizada correctamente",
-        solicitud,
-      },
+      { message: "Solicitud actualizada correctamente", solicitud },
       { status: 200 }
     );
+
   } catch (error) {
+    console.error("PUT /api/solicitudes/[id] error:", error);
     return NextResponse.json(
       { message: "Error al actualizar solicitud" },
       { status: 500 }
@@ -134,6 +126,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await context.params;
+    const solicitudesDB = await getSolicitudesCollection();
 
     const authHeader = req.headers.get("authorization");
     const role = req.headers.get("role");
@@ -146,20 +139,15 @@ export async function DELETE(
       );
     }
 
-    const index = solicitudes.findIndex(
-      (s) => s.id === id
-    );
+    const solicitud = solicitudesDB.findOne({ id });
 
-    if (index === -1) {
+    if (!solicitud) {
       return NextResponse.json(
         { message: "Solicitud no encontrada" },
         { status: 404 }
       );
     }
 
-    const solicitud = solicitudes[index];
-
-    // Usuario solo puede eliminar la suya
     if (role !== "admin" && solicitud.userId !== userId) {
       return NextResponse.json(
         { message: "Acceso prohibido" },
@@ -167,13 +155,15 @@ export async function DELETE(
       );
     }
 
-    solicitudes.splice(index, 1);
+    solicitudesDB.remove(solicitud);
 
     return NextResponse.json(
       { message: "Solicitud eliminada correctamente" },
       { status: 200 }
     );
+
   } catch (error) {
+    console.error("DELETE /api/solicitudes/[id] error:", error);
     return NextResponse.json(
       { message: "Error al eliminar solicitud" },
       { status: 500 }
